@@ -100,6 +100,38 @@ $$
  (-\log{S(t)=H(t)})
 $$
 
+### Log-log
+$\log(y)$ vs $\log\{-\log(S(t))\}$ 
+
+```{r}
+km_age_table %>% mutate(ll = log(-log(surv))) %>% 
+  mutate(logt = log(time)) %>% 
+  ggplot(aes(x = logt, y = ll)) + 
+  geom_point(aes(color = strata, fill = strata)) +
+  theme_linedraw(base_size = 16, base_family = "Times")
+
+```
+
+#### For 2 group case
+```{r}
+age_med <- df$age %>% quantile %>% `[`(3)
+df$age_c2 <- df$age %>% cut(breaks = c(0, age_med, max(df$age)), labels = c("younger", "elder"), include.lowest = T, right = F)
+km_age_table2g <- survfit(Surv(time, status)~age_c2, data = df) %>% fortify
+km_age_table2g%>% mutate(ll = log(-log(surv))) %>% 
+  mutate(logt = log(time)) %>% 
+  ggplot(aes(x = logt, y = ll)) + 
+  geom_point(aes(color = strata, fill = strata)) +
+  theme_linedraw(base_size = 16, base_family = "Times")
+```
+
+#### Log rank 
+rh = 0 => log-rank, rh =1 => Gehan-Wilcoxon
+```{r}
+survdiff(Surv(time, status)~age_c2, data = df)
+survdiff(Surv(time, status)~karno, data = df)
+survdiff(Surv(time, status)~trt, data = df)
+```
+
 #### Schoenfeld residuals
 Cox zph caclulates Schoenfeld residual.
 [Vignette:timedep](https://cran.r-project.org/web/packages/survival/vignettes/timedep.pdf)
@@ -109,6 +141,7 @@ ggplot(data = df, aes(x = time, y = karno)) + geom_line()
 zp <- cox.zph(cox, transform= function(time) log(time +20))
 zp
 ```
+
 ```{r}
 zp %>% plot
 ```
@@ -132,17 +165,7 @@ vet2 %>% tbl_df
 vfit2 <- coxph(Surv(tstart, time, status) ~ trt + prior + karno:strata(tgroup), data=vet2)
 vfit2
 ```
+
 ```{r}
 cox.zph(vfit2)
-```
-
-### Log-log
-$\log(y)$ vs $\log\{-\log(S(t))\}$ 
-```{r}
-km_age_table %>% mutate(ll = log(-log(surv))) %>% 
-  mutate(logt = log(time)) %>% 
-  ggplot(aes(x = logt, y = ll)) + 
-  geom_point(aes(color = strata, fill = strata)) +
-  theme_linedraw(base_size = 16, base_family = "Times")
-
 ```
