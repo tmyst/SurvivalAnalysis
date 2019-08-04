@@ -1,0 +1,148 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+library(survival)
+library(ggfortify)
+library(ggthemes)
+library(RColorBrewer)
+```
+
+```{r}
+path <- "Data/veteran.csv"
+df <- read_csv(path)
+df
+```
+
+```{r}
+df %>% map(., ~ typeof(.)) %>% cbind(type = .)
+df %>% mosaic::inspect()
+```
+
+```{r}
+km <- survfit(Surv(time, status)~1., data = df)
+km_table <- ggplot2::fortify(km)
+km_table %>% tbl_df
+```
+#### Confirm how to calc Kaplan Meier survival curve and standard error
+```{r}
+km_table %>% mutate(r = (n.risk-n.event)/n.risk) %>% 
+  mutate(my_surv = cumprod(r)) %>% 
+  mutate(temp = n.event/((n.risk)*(n.risk-n.event))) %>% 
+  mutate(my_se = sqrt(cumsum(temp))) %>% select(-temp) %>% tbl_df
+
+```
+
+#### draw survival curv
+```{r}
+p1 <- km_table %>% ggplot(aes(x = time, y = surv))+ geom_line() + 
+  geom_point() + 
+  geom_ribbon(aes(ymin=lower, ymax = upper), alpha = 0.3)+
+  theme_bw(base_size = 16, base_family = "Palatino") +
+  ylab("survival") + xlab("time (/months)") 
+
+nodes <- 8
+time_nodes_ <- min(km_table$time) + (max(km_table$time) - min(km_table$time))/nodes * 1:nodes
+time_nodes  <- km_table$time[sapply(time_nodes_, function(x) which.min(abs(km_table$time - x)))]
+p2 <- km_table %>% filter(time %in% time_nodes) %>% ggplot(aes(x = time))+
+  geom_text(aes(label = n.risk, y= 1)) + 
+  theme_bw(base_family = "Palatino", base_size = 16) + 
+  theme(axis.text.y= element_blank())
+
+egg::ggarrange(p1, p2, nrow =2, heights = c(0.8, 0.2))
+```
+
+```{r}
+km_fit_trt <- survfit(Surv(time, status)~trt, data = df)
+km_fit_trt %>% fortify -> trt_table
+p <- km_fit_trt %>% autoplot
+p$theme <- theme_bw(base_family = "Times", base_size = 16)
+p
+```
+
+```{r}
+age_cuts <- df$age %>% quantile(prob = c(0.333, 0.667))
+brks <- c(0, age_cuts, max(df$age))
+df$age_c <- df$age %>% cut(breaks = brks, labels = str_c("[", brks[1:length(brks)-1], "_", lead(brks)[1:length(brks)-1], ")")) 
+
+km_fit_age <- survfit(Surv(time, status)~age_c, data =df)
+km_age_table <- fortify(km_fit_age)
+p_age <- km_fit_age %>% autoplot
+p_age$theme <- theme_bw(base_family = "Times", base_size = 16) + 
+  theme(legend.position = c(0.85, 0.85), 
+        legend.justification = c(0.85, 0.85),
+        axis.title.x = element_blank())
+
+p_age_text <- km_age_table %>% group_by(strata) %>% 
+  filter(time %in% time[sapply(time_nodes_, function(x)which.min(abs(time - x) ))]) %>% 
+  ungroup() %>% arrange(strata, time) %>% 
+  ggplot(aes(x = time, y = strata))+ 
+  geom_text(aes(label = n.risk, color = strata)) +
+  theme_bw(base_size = 16, base_family = "Times")+
+  theme(legend.position = "none")
+
+egg::ggarrange(p_age, p_age_text, heights = c(0.75, 0.25))
+```
+#### Cox ph
+```{r}
+cox <- coxph(Surv(time, status) ~ trt + celltype + age + karno + diagtime + prior, data = df)
+cox
+```
+### Porportional hazard
+#### Complementary log-log plot
+$$
+ \log(-\log{S(t)}) = \log(-\log{S_{0}(t)}) + (\beta_{0} + \beta_{1}x_{1}+\beta_{2}x_{2}+\cdots+\beta_{n}x_{n})\\
+ (-\log{S(t)=H(t)})
+$$
+
+#### Schoenfeld residuals
+Cox zph caclulates Schoenfeld residual.
+[Vignette:timedep](https://cran.r-project.org/web/packages/survival/vignettes/timedep.pdf)
+Using this residuals we can test hazard ratio under null hypothesis "the coefficient satisfies the proportional hazard assumption"
+```{r}
+ggplot(data = df, aes(x = time, y = karno)) + geom_line()
+zp <- cox.zph(cox, transform= function(time) log(time +20))
+zp
+```
+```{r}
+zp %>% plot
+```
+
+So, for trt, celltypelarge, celltypesmallcell, celltypesquamous and diagtime, we cannot strongly insist on non-proportionality.
+But other features, in other words, age, karno and prior, non-proportionality may be behind the scene.
++ Multiple hazard functions of which dependencies on time differ each other.
++ Time-dependent coefficients
++ Log-linearity is wrong
+
+How to deal with this problem,
++ Use different base line hazards for different subgroupes
++ Assume time-dependent coefficient
++ Add non-linear effect to linear term in cox model
+```{r}
+vet2 <- survSplit(Surv(time, status) ~ ., data= veteran, cut=c(90, 180), episode= "tgroup", id="id")
+vet2 %>% tbl_df
+```
+
+```{r}
+vfit2 <- coxph(Surv(tstart, time, status) ~ trt + prior + karno:strata(tgroup), data=vet2)
+vfit2
+```
+```{r}
+cox.zph(vfit2)
+```
+
+### Log-log
+$\log(y)$ vs $\log\{-\log(S(t))\}$ 
+```{r}
+km_age_table %>% mutate(ll = log(-log(surv))) %>% 
+  mutate(logt = log(time)) %>% 
+  ggplot(aes(x = logt, y = ll)) + 
+  geom_point(aes(color = strata, fill = strata)) +
+  theme_linedraw(base_size = 16, base_family = "Times")
+
+```
