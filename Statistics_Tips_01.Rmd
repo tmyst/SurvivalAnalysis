@@ -1,0 +1,98 @@
+---
+title: "Statistical Analysis Tips"
+subtitle: "統計学的検定など"
+author: "tmyst"
+date: "`r Sys.Date()`"
+output: 
+  rmdformats::readthedown:
+    highlight: zenburn
+    md_extensions: -ascii_identifiers
+    self_containd: true
+    lightbox: true
+    toc_float: true
+    toc_depth: 3
+---
+
+```{r knitr_init, cache=FALSE, include=FALSE}
+library(knitr)
+library(rmdformats)
+## Global Options
+options(max.print = "75")
+opts_chunk$set(echo = F, cache = T, prompt = F, tidy = T, comment = NA, message = F, warning = F)
+opts_knit$set(width = 75)
+```
+
+### 検定
+#### 正規性の検定
++ Normal probability plots
++ Shapiro-Wilk test
+
+#### 等分散の検定
++ F-test
+
+#### 対応のない２群
++ パラメトリック　　：t-test
+  - 等分散   : Student's t-test
+  - 不等分散 : Welch's t-test
++ ノンパラメトリック：Mann-Whitney's U test (Wilcoxon's rank-sum test)
+
+#### 対応のある２群
++ パラメトリック　　：Paired t-test
++ ノンパラメトリック：Wilcoxon's signed-rank test
+
+#### 対応のない３群
++ パラメトリック　　：One way ANOVA
++ ノンパラメトリック：Kruskal-Wallis test
+
+#### 対応のある３群
++ パラメトリック　　：One way repeated measures ANOVA
++ ノンパラメトリック：Friedman test
+
+#### 生存時間解析における検定
++ Log-rank(Mantel-Cox) :  帰無仮説$\rm{H_{0}} : Hazard\ Ratio = 1.0$に対し$\rm{H_{1}} : Hazard\ Ratio \ne 1.0$を検定。比例ハザード性を仮定するので比例ハザード性が成り立たない状況では有意となり難い。
++ 一般化Wilcoxon : 観察期間前記の生存期間の差に敏感、後期には鈍感
+
+#### 適合度検定
++ Likelihood ratio test
++ Wald test
++ Sqore (logrank) test
+
+#### 生存時間解析の一般的な流れ
++ Kaplan-meierにより生存曲線を作成
++ MST(Median survival time)を計算
++ 群間比較のためのハザード比を算出
++ Log-rank検定(RだとSurvdiff rho = 0, (rho =1 だとPeto-Peto流一般化Wilcoxon検定))
+
+#### 用語
++ OS  : 全生存期間
++ PFS : 無憎悪生存期間
++ SPP : 憎悪から死亡までの期間
++ PFS2 : 
++ TFS : Time to failure to strategy
++ TDR : Time to distant metastasis
++ マイルストーン解析
++ 重み付きLog-rank検定
++ 期限付き平均生存時間
+
+参考
+https://www.haigan.gr.jp/journal/am/2018a/pdf/18a_el010EL1.pdf
+
+#### 検定の種類について
++ 有意差検定 : 新しい治療法が従来の治療法に比べて治療効果が高いことを示す
++ 非劣勢検定 : 新しい治療法が従来の治療法に劣ることはないことを示す
+
+#### 生存時間解析における信頼区間
++ Log
++ Log-log
++ plain
+
+#### 生存時間解析における分散の計算方法
++ Greenwood
+
+#### Cox層別の扱い
++ 層別
++ ベースラインハザードのみ違うとして解析(strata(x))
++ カテゴリ変数として層を組み込む
+
+参考
+http://minato.sip21c.org/msb/medstatbookx.pdf
